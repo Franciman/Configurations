@@ -1,36 +1,11 @@
-def -hidden cpp-indent-on-colon %[
-    try %[
-        exec -draft <a-x> <a-k>\h*(public|private|protected)<ret> <lt>
-    ]
-]
-
-def -hidden cpp-indent-on-newline %[
-    try %[
-        # If previous line was { don't indent it
-        exec -draft k<a-x> <a-K>\h*{\h*<ret>
-        exec -draft kk<a-x> <a-k>.*\(.*\):<ret>J<a-&>\;<a-gt>
-    ]
-]
-
-# TODO: This is very coarse, find a better way
-def -hidden cpp-indent-brace-after-ctor-initializer-list %[
-    try %[
-            # Avoiding case stuff
-            exec -draft <a-f>: \; <a-x> <a-K>.*\bcase\b.*:<ret>j
-
-            exec -draft %< <a-f>: \; <a-x> <a-k>.*\(.*\):<ret>f{ \; K <a-&> <a-x> <a-K>.*\(.*\):<ret>j <a-lt> >
-    ] 
-]
+# ------------------------------------------------------------------------------------------------------
+# Generic definitions and hooks
 
 hook global WinCreate .* %[
     addhl number_lines
 ]
 
-
-set global termcmd 'sakura         -x      '
-
-
-def ide %[
+define-command ide %[
     rename-client main
     set global jumpclient main
 
@@ -41,21 +16,29 @@ def ide %[
     set global docsclient docs
 ]
 
+
+# ------------------------------------------------------------------------------------------------------
+# C++
+
+define-command -hidden cpp-indent-on-colon %[
+    try %[
+        exec -draft <a-x> <a-k>\h*(public|private|protected)<ret> <lt>
+    ]
+]
+
 hook global WinSetOption filetype=cpp %[
 
     hook window InsertChar : cpp-indent-on-colon
-    hook window InsertChar \n cpp-indent-on-newline
-    hook window InsertChar \{ cpp-indent-brace-after-ctor-initializer-list
 
     hook buffer BufWritePost .* clang-parse
 
     set window clang_options '-std=c++14'
 
-     %sh[
-        flags_finder='/home/francesco/Projects/ClangConfReader/clang_conf_reader'
-        flags=$($flags_finder)
-        echo "set buffer clang_options '$flags'"
-    ]
+     #%sh[
+        #flags_finder='/home/francesco/Projects/ClangConfReader/clang_conf_reader'
+        #flags=$($flags_finder)
+        #echo "set buffer clang_options '$flags'"
+    #]
 
     %sh[
     	if [ $PWD = "/home/francesco/Projects/v22" ]; then
@@ -74,17 +57,64 @@ hook global WinSetOption filetype=cpp %[
 
 ]
 
+#---------------------------------------------------------------------------------------------
+# Ergonomic maps
+
+map global user y %{<a-|>xclip -i -selection clipboard<ret>} -docstring "yank to clipboard"
+map global user p %{<a-!>xclip -o -selection clipboard<ret>} -docstring "Paste from clipboard"
+map global user d %{,yd} -docstring "yank to clipboard and delete"
+
+map global normal <c-e> vj
+map global normal <c-y> vk
+
 # Vim-esque split
-def sp -params 1 -file-completion %[
-    x11-new edit %arg[1]
+define-command sp -params 1 -file-completion %[
+    new edit %arg[1]
 ]
+
+# -------------------------------------------------------------------------------------------------
+# Haskell
 
 hook global WinSetOption filetype=haskell %[
     map buffer insert <tab> '<a-;><gt>'
     map buffer insert <backtab> '<a-;><lt>'
-
-    add-highlighter -group /haskell/code regex \b[A-Z:]\w+\b 0:type
-
 ]
+
+# --------------------------------------------------------------------------------------------------
+# Rust
+
+define-command racer-type-signature %[
+    echo %sh{
+        cursor="${kak_cursor_line} $((${kak_cursor_column} - 1))"
+        # TODO: Maybe we should use a substitute file,
+        # even if I don't think i'll keep on writing when waiting for infos
+        racer_data=$(racer --interface tab-text find-definition ${cursor} ${kak_buffile})
+        definition=$(printf %s\\n "${racer_data}" | awk '
+            BEGIN { FS = "\t" }
+            /^MATCH/ {
+                print $7
+            }'
+        )
+
+        printf "%%[%s]" "${definition}"
+    }
+]
+
+hook global WinSetOption filetype=rust %[
+    racer-enable-autocomplete
+    map global user s ':racer-type-signature<ret>' -docstring "Get signature of rust function under the cursor"
+]
+
+#---------------------------------------------------------------------------------------------------
+# Blog post commands
+
+declare-option str blog_post_template '<lt>div<gt><ret><lt>h2<gt><lt>/h2<gt><ret><lt>p<gt><lt>/p<gt><ret><lt>/div<gt>'
+define-command new-blog-post %{
+    exec "/<lt>body<gt><ret>jo%opt{blog_post_template}<esc>k<gt>k<gt>glbhhi"
+}
+
+
+# --------------------------------------------------------------------------------------------------
+# Colorscheme
 
 colorscheme gruvbox
