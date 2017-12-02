@@ -2,7 +2,7 @@
 # Generic definitions and hooks
 
 hook global WinCreate .* %[
-    addhl number_lines
+    add-highlighter global number_lines
 ]
 
 define-command ide %[
@@ -16,6 +16,30 @@ define-command ide %[
     set global docsclient docs
 ]
 
+# -------------------------------------------------------------------------------------------------------------
+# Highlight matching parenthesis
+
+declare-option -hidden range-specs show_matching_range
+
+hook global -group kakrc InsertChar [[(<{}>)\]] %{ eval -draft %{
+    try %{
+        execute-keys -no-hooks <esc>\;hm<a-k>..<ret>\;
+        set-option window show_matching_range "%val{timestamp}:%val{selection_desc}|MatchingChar"
+    }
+
+    hook window -group once-matching InsertChar [^[(<{}>)\]] %{
+        set-option window show_matching_range ""
+        remove-hooks window once-matching
+    }
+} }
+
+hook global -group kakrc InsertEnd .* %{
+    set-option buffer show_matching_range ""
+}
+
+hook global -group kakrc WinCreate .* %{
+    add-highlighter global ranges show_matching_range
+}
 
 # ------------------------------------------------------------------------------------------------------
 # C++
